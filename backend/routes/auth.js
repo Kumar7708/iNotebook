@@ -86,9 +86,9 @@ router.post('/login', [body('email', 'Enter a valid Email').isEmail(), body('pas
 router.post('/getuser', fetchuser, async (req, res) => {
 
     try {
-        const  userId = req.user.id;
+        const userId = req.user.id;
         const user = await User.findById(userId).select("-password");
-        res.send({user})
+        res.send({ user })
 
     } catch (error) {
         console.error(error.message);

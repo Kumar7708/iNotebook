@@ -4,7 +4,7 @@ const User = require("../models/User");
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const fetchuser = require("../middleware/fetchuser");
+const fetchuser = require("../middleware/fetchuser"); // Get the user from jwt and add id to the req
 
 const JWT_SECRET = "HelloIAmKumar";
 
@@ -13,18 +13,21 @@ router.post('/createuser', [body('name', 'Enter a valid name').isLength({ min: 3
 
     //  If there are errors, return bad request and the errors
     const errors = validationResult(req);
+    let success = false;
     if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        return res.status(400).json({success, errors: errors.array() });
     }
 
     try {
         //  Check whether the user with this email exists already
         let user = await User.findOne({ email: req.body.email });
         if (user) {
-            return res.status(400).json({ error: "Sorry a user with this email aleady exists" })
+            return res.status(400).json({success, error: "Sorry a user with this email aleady exists" })
         }
+        // Hashing the password using salt and hash
         const salt = await bcrypt.genSalt(10);
         const secPass = await bcrypt.hash(req.body.password, salt);
+        // Create new user
         user = await User.create({
             name: req.body.name,
             email: req.body.email,
@@ -36,9 +39,10 @@ router.post('/createuser', [body('name', 'Enter a valid name').isLength({ min: 3
                 id: user.id
             }
         };
-
+        // Signing our data which has id in it and sending the authtoken
         const authToken = jwt.sign(data, JWT_SECRET);
-        res.json({ authToken });
+        success = true;
+        res.json({success, authToken });
 
     } catch (error) {
         console.error(error.message);
@@ -47,23 +51,28 @@ router.post('/createuser', [body('name', 'Enter a valid name').isLength({ min: 3
 });
 
 
-//ROUTE-2 Create a User using POST "api/auth/login". Doesn't require login
+//ROUTE-2 Login a User using POST "api/auth/login". Doesn't require login
 router.post('/login', [body('email', 'Enter a valid Email').isEmail(), body('password', 'Password cannot be blank').exists()], async (req, res) => {
 
     //  If there are errors, return bad request and the errors
+    let success = false;
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
     const { email, password } = req.body;
     try {
+        // Checking if the user exists or not if exists campare the entered password with the password which is encrpyted
         let user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).json({ error: "Please try to login with correct credientials" });
+            success = false;
+            return res.status(400).json({success, error: "Please try to login with correct credientials" });
         }
+        // checking password
         const passwordCompare = await bcrypt.compare(password, user.password);
         if (!passwordCompare) {
-            return res.status(400).json({ error: "Please try to login with correct credientials" });
+            success = false;
+            return res.status(400).json({ success, error: "Please try to login with correct credientials" });
         }
 
         const data = {
@@ -71,9 +80,10 @@ router.post('/login', [body('email', 'Enter a valid Email').isEmail(), body('pas
                 id: user.id
             }
         };
-
+        // sending token
         const authToken = jwt.sign(data, JWT_SECRET);
-        res.json({ authToken });
+        success = true;
+        res.json({ success, authToken });
 
     } catch (error) {
         console.error(error.message);
@@ -87,6 +97,7 @@ router.post('/getuser', fetchuser, async (req, res) => {
 
     try {
         const userId = req.user.id;
+        // select except password
         const user = await User.findById(userId).select("-password");
         res.send({ user })
 
